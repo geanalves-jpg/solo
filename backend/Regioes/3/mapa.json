@@ -1,0 +1,24 @@
+{
+    "Brasil": {
+        "Arquivo": "1.png",
+        "X": 0,
+        "Y": 0,
+        "Cor": "#000000",
+        "Regiões filhas": {
+            "Pernambuco": {
+                "Arquivo": "2.png",
+                "X": 0,
+                "Y": 0,
+                "Cor": "#000000",
+                "Regiões filhas": {}
+            }
+        }
+    },
+    "teste": {
+        "Arquivo": "3.png",
+        "X": 0,
+        "Y": 0,
+        "Cor": "#000000",
+        "Regiões filhas": {}
+    }
+}

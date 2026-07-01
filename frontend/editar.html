@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Região</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body class="bg-light">
+    <div class="bg-white border-bottom py-2 mb-4">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span id="usuario-logado" class="text-muted small bg-secondary-subtle px-2 py-1 rounded">👤 Carregando...</span>
+            <button onclick="localStorage.removeItem('token_mapas'); window.location.href='login.html';" class="btn btn-outline-danger btn-sm">Sair</button>
+        </div>
+    </div>
+    <div class="container my-5" style="max-width: 600px;">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h5 mb-0 py-1">✏️ Editar Região</h2>
+            </div>
+            <div class="card-body p-4">
+                <div id="mensagem-alerta" class="alert d-none" role="alert"></div>
+
+                <div id="carregando-dados" class="text-center my-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Carregando dados atuais da região...</p>
+                </div>
+
+                <form id="form-editar" class="d-none" onsubmit="atualizarRegiao(event)">
+                    <div class="mb-3">
+                        <label class="form-label">Nome da Região</label>
+                        <input type="text" id="regiao-nome" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Região Pai (Entidade Mãe)</label>
+                        <select id="regiao-pai" class="form-select">
+                            <option value="">Nenhuma (Raiz)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <textarea id="regiao-descricao" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between pt-2">
+                        <a href="index.html" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+        <div id="toast-sistema" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+            <div class="d-flex">
+                <div id="toast-mensagem" class="toast-body fw-bold"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        const urlParams = new URLSearchParams(window.location.search);
+        const regiaoId = urlParams.get('id');
+
+        function exibirToast(mensagem, variante = "success") {
+            const toastElement = document.getElementById('toast-sistema');
+            const toastMensagem = document.getElementById('toast-mensagem');
+            if (!toastElement || !toastMensagem) return;
+
+            toastMensagem.innerText = mensagem;
+            toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+
+            if (variante === "success") toastElement.classList.add('bg-success');
+            if (variante === "danger") toastElement.classList.add('bg-danger');
+            if (variante === "warning") toastElement.classList.add('bg-warning');
+            if (variante === "info") toastElement.classList.add('bg-info');
+
+            const bsToast = new bootstrap.Toast(toastElement);
+            bsToast.show();
+        }    
+
+        async function carregarTelaEditar() {
+            const form = document.getElementById('form-editar');
+            const spinner = document.getElementById('carregando-dados');
+            const alerta = document.getElementById('mensagem-alerta');
+            const selectPai = document.getElementById('regiao-pai');
+
+            const token = localStorage.getItem('token_mapas');
+            if (!token) {
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('0' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                document.getElementById('usuario-logado').innerText = `👤 ${JSON.parse(jsonPayload).sub}`;
+            } catch (e) {
+                document.getElementById('usuario-logado').innerText = `👤 Usuário Autenticado`;
+            }
+
+            if (!regiaoId) {
+                if (spinner) spinner.classList.add('d-none');
+                exibirToast("ID da região ausente na URL.", "danger");
+                return;
+            }
+
+            try {
+                const responseRegioes = await fetch(`${API_URL}/regiao`);
+                if (responseRegioes.ok) {
+                    const regioes = await responseRegioes.json();
+                    regioes.forEach(reg => {
+                        if (reg.id != regiaoId) {
+                            const option = document.createElement('option');
+                            option.value = reg.id;      
+                            option.innerText = reg.nome; 
+                            selectPai.appendChild(option);
+                        }
+                    });
+                }
+
+                const response = await fetch(`${API_URL}/regiao/${regiaoId}`);
+                if (!response.ok) throw new Error("A região não foi encontrada.");
+
+                const regAtual = await response.json();
+                document.getElementById('regiao-nome').value = regAtual.nome;
+                document.getElementById('regiao-pai').value = regAtual.id_regiao_pai || "";
+                document.getElementById('regiao-descricao').value = regAtual.descricao || "";
+
+                if (spinner) spinner.classList.add('d-none');
+                if (form) form.classList.remove('d-none');
+            } catch (error) {
+                if (spinner) spinner.classList.add('d-none');
+                exibirToast(error.message, "danger");
+            }
+        }
+
+        async function atualizarRegiao(event) {
+            event.preventDefault();
+            const token = localStorage.getItem('token_mapas');
+            const dadosUpdate = {
+                nome: document.getElementById('regiao-nome').value,
+                descricao: document.getElementById('regiao-descricao').value || null,
+                id_regiao_pai: parseInt(document.getElementById('regiao-pai').value) || null,
+                id_criador: 1
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/regiao/${regiaoId}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(dadosUpdate)
+                });
+
+                if (!response.ok) throw new Error("Erro ao atualizar.");
+
+                exibirToast("✏️ Região atualizada!", "success");
+                setTimeout(() => {
+                    window.location.href = "index.html";
+                }, 1500);
+            } catch (error) {
+                exibirToast(error.message, "danger");
+            }
+        }
+
+        window.onload = carregarTelaEditar;
+    </script>
+</body>
+</html>

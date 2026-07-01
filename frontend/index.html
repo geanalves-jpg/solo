@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listar Regiões</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body class="bg-light">
+
+    <div class="container my-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">🗺️ Regiões Cadastradas</h1>
+            <div class="d-flex align-items-center">
+                <a href="criar.html" class="btn btn-success me-2">➕ Nova Região</a>
+                <span id="usuario-logado" class="text-muted small me-3 bg-secondary-subtle px-2 py-1 rounded">👤 Carregando...</span>
+                <button onclick="limparToken()" class="btn btn-outline-danger btn-sm">Sair</button>
+            </div>
+        </div>
+
+        <div id="mensagem-alerta" class="alert d-none" role="alert"></div>
+
+        <div class="row mb-4">
+            <div class="col-12 col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">🔍</span>
+                    <input type="text" id="campo-busca" class="form-control" placeholder="Buscar região pelo nome..." oninput="paginaAtual = 1; filtrarERenderizar();">
+                </div>
+            </div>
+        </div>
+
+        <div id="carregando" class="text-center my-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Buscando regiões no servidor...</p>
+        </div>
+
+        <div id="lista-regioes" class="row g-4 d-none"></div>
+
+        <div id="controles-paginacao" class="d-none d-flex justify-content-between align-items-center mt-5 border-top pt-3">
+            <span id="info-paginas" class="text-muted small">Página 1 de 1</span>
+            
+            <nav>
+                <ul class="pagination mb-0">
+                    <li id="btn-anterior-li" class="page-item">
+                        <button id="btn-anterior" class="page-link" onclick="mudarPagina(-1)">Anterior</button>
+                    </li>
+                    <li id="btn-proximo-li" class="page-item">
+                        <button id="btn-proximo" class="page-link" onclick="mudarPagina(1)">Próximo</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+        <div id="toast-sistema" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+            <div class="d-flex">
+                <div id="toast-mensagem" class="toast-body fw-bold"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalConfirmarExclusao" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Confirmar Exclusão</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Tem certeza de que deseja apagar permanentemente essa região? Essa ação não poderá ser desfeita.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btn-confirmar-deletar-modal" class="btn btn-danger">🗑️ Confirmar Exclusão</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        
+        let todasAsRegioes = []; 
+        let paginaAtual = 1;
+        const itensPorPagina = 3; 
+        let idParaDeletar = null;
+
+        function exibirToast(mensagem, variante = "success") {
+            const toastElement = document.getElementById('toast-sistema');
+            const toastMensagem = document.getElementById('toast-mensagem');
+            if (!toastElement || !toastMensagem) return;
+
+            toastMensagem.innerText = mensagem;
+            toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+
+            if (variante === "success") toastElement.classList.add('bg-success');
+            if (variante === "danger") toastElement.classList.add('bg-danger');
+            if (variante === "warning") toastElement.classList.add('bg-warning');
+            if (variante === "info") toastElement.classList.add('bg-info');
+
+            const bsToast = new bootstrap.Toast(toastElement);
+            bsToast.show();
+        }
+
+        function limparToken() {
+            localStorage.removeItem('token_mapas');
+            window.location.href = "login.html";
+        }
+
+        async function carregarRegioes() {
+            const listaDiv = document.getElementById('lista-regioes');
+            const carregandoDiv = document.getElementById('carregando');
+            const alerta = document.getElementById('mensagem-alerta');
+
+            const token = localStorage.getItem('token_mapas');
+            if (!token) {
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('0' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                const payload = JSON.parse(jsonPayload);
+                document.getElementById('usuario-logado').innerText = `👤 ${payload.sub}`;
+            } catch (e) {
+                document.getElementById('usuario-logado').innerText = `👤 Usuário Autenticado`;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/regiao`);
+                if (!response.ok) throw new Error("Não foi possível ler os registros do servidor.");
+
+                todasAsRegioes = await response.json();
+                if (carregandoDiv) carregandoDiv.classList.add('d-none');
+                filtrarERenderizar();
+            } catch (error) {
+                if (carregandoDiv) carregandoDiv.classList.add('d-none');
+                alerta.className = "alert alert-danger";
+                alerta.innerText = "❌ Erro: O servidor não respondeu ou está offline.";
+                alerta.classList.remove('d-none');
+            }
+        }
+
+        function filtrarERenderizar() {
+            const listaDiv = document.getElementById('lista-regioes');
+            const carregandoDiv = document.getElementById('carregando');
+            const controlesPaginacao = document.getElementById('controles-paginacao');
+            const termoBusca = document.getElementById('campo-busca').value.toLowerCase().trim();
+
+            if (carregandoDiv) carregandoDiv.classList.add('d-none');
+            if (listaDiv) listaDiv.classList.remove('d-none');
+
+            let regioesFiltradas = todasAsRegioes;
+            if (termoBusca !== "") {
+                regioesFiltradas = todasAsRegioes.filter(reg => 
+                    reg.nome && reg.nome.toLowerCase().includes(termoBusca)
+                );
+            }
+
+            const totalItens = regioesFiltradas.length;
+            const totalPaginas = Math.ceil(totalItens / itensPorPagina) || 1;
+
+            if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+            if (paginaAtual < 1) paginaAtual = 1;
+
+            const indiceInicio = (paginaAtual - 1) * itensPorPagina;
+            const indiceFim = indiceInicio + itensPorPagina;
+            const itensDaPagina = regioesFiltradas.slice(indiceInicio, indiceFim);
+
+            listaDiv.innerHTML = "";
+            if (itensDaPagina.length === 0) {
+                listaDiv.innerHTML = `<div class="col-12 text-center text-muted my-4">Nenhum registro correspondente encontrado.</div>`;
+                if (controlesPaginacao) controlesPaginacao.classList.add('d-none');
+                return;
+            }
+
+            if (controlesPaginacao) controlesPaginacao.classList.remove('d-none');
+
+            itensDaPagina.forEach(reg => {
+                const urlImagem = `${API_URL}/uploads/${reg.id}/${reg.id}.png`;
+                let nomeRegiaoPai = "Raiz (Nenhum)";
+                if (reg.id_regiao_pai) {
+                    const regPai = todasAsRegioes.find(r => r.id === reg.id_regiao_pai);
+                    if (regPai) nomeRegiaoPai = regPai.nome;
+                }
+
+                const col = document.createElement('div');
+                col.className = "col-12 col-md-4";
+                col.innerHTML = `
+                    <div class="card h-100 shadow-sm">
+                        <img src="${urlImagem}" class="card-img-top" style="height: 180px; object-fit: cover;" onerror="this.src='https://placehold.co/400x200?text=Sem+Imagem'">
+                        <div class="card-body">
+                            <h5 class="card-title">${reg.nome}</h5>
+                            <p class="card-text text-muted small">${reg.descricao || 'Sem descrição informada.'}</p>
+                            <p class="card-text mb-1"><small class="text-muted">ID: ${reg.id} | Pertence à: <strong>${nomeRegiaoPai}</strong></small></p>
+                        </div>
+                        <div class="card-footer bg-transparent border-top-0 d-flex justify-content-between">
+                            <a href="editar.html?id=${reg.id}" class="btn btn-sm btn-outline-primary">✏️ Editar</a>
+                            <button onclick="deletarRegiao(${reg.id})" class="btn btn-sm btn-outline-danger">🗑️ Excluir</button>
+                        </div>
+                    </div>
+                `;
+                listaDiv.appendChild(col);
+            });
+
+            document.getElementById('info-paginas').innerText = `Página ${paginaAtual} de ${totalPaginas}`;
+
+            const btnAnteriorLi = document.getElementById('btn-anterior-li');
+            const btnAnterior = document.getElementById('btn-anterior');
+            if (paginaAtual === 1) {
+                if (btnAnteriorLi) btnAnteriorLi.classList.add('disabled');
+                if (btnAnterior) btnAnterior.setAttribute('disabled', 'true');
+            } else {
+                if (btnAnteriorLi) btnAnteriorLi.classList.remove('disabled');
+                if (btnAnterior) btnAnterior.removeAttribute('disabled');
+            }
+
+            const btnProximoLi = document.getElementById('btn-proximo-li');
+            const btnProximo = document.getElementById('btn-proximo');
+            if (paginaAtual === totalPaginas) {
+                if (btnProximoLi) btnProximoLi.classList.add('disabled');
+                if (btnProximo) btnProximo.setAttribute('disabled', 'true');
+            } else {
+                if (btnProximoLi) btnProximoLi.classList.remove('disabled');
+                if (btnProximo) btnProximo.removeAttribute('disabled');
+            }
+        }
+
+        function mudarPagina(direcao) {
+            paginaAtual += direcao;
+            filtrarERenderizar();
+        }
+
+        function deletarRegiao(id) {
+            idParaDeletar = id;
+            const modalElement = document.getElementById('modalConfirmarExclusao');
+            const bsModal = new bootstrap.Modal(modalElement);
+            bsModal.show();
+
+            document.getElementById('btn-confirmar-deletar-modal').onclick = async function() {
+                bsModal.hide();
+                await executarExclusaoServidor(idParaDeletar);
+            };
+        }
+
+        async function executarExclusaoServidor(id) {
+            const token = localStorage.getItem('token_mapas');
+            try {
+                const response = await fetch(`${API_URL}/regiao/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error("Ação não autorizada.");
+                
+                exibirToast("🗑️ Região removida com sucesso!", "success");
+                carregarRegioes();
+            } catch (error) {
+                exibirToast(`❌ Erro ao deletar: ${error.message}`, "danger");
+            }
+        }
+
+        window.onload = carregarRegioes;
+    </script>
+</body>
+</html>

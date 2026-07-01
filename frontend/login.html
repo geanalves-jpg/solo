@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acessar Sistema</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body class="bg-light d-flex align-items-center justify-content-center" style="height: 100vh;">
+
+    <div class="card shadow-sm p-4" style="width: 100%; max-width: 400px;">
+        <div class="text-center mb-4">
+            <h1 class="h3 font-weight-normal">🔑 GeoMapas</h1>
+            <p class="text-muted">Insira suas credenciais para entrar</p>
+        </div>
+
+        <div id="mensagem-alerta" class="alert d-none" role="alert"></div>
+
+        <form onsubmit="executarLogin(event)">
+            <div class="mb-3">
+                <label for="login-email" class="form-label">E-mail</label>
+                <input type="email" id="login-email" class="form-control" required placeholder="admin@email.com">
+            </div>
+            <div class="mb-3">
+                <label for="login-senha" class="form-label">Senha</label>
+                <input type="password" id="login-senha" class="form-control" required placeholder="••••••••">
+            </div>
+
+            <button class="w-100 btn btn-lg btn-primary mb-3" type="submit">Entrar</button>
+            
+            <div class="text-center">
+                <p class="small text-muted">Ainda não tem conta? <a href="cadastro.html" class="text-decoration-none">Cadastre-se</a></p>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+
+        // REQUISITO: Função centralizada para disparar Toasts do Bootstrap
+        function exibirToast(mensagem, variante = "success") {
+            const toastElement = document.getElementById('toast-sistema');
+            const toastMensagem = document.getElementById('toast-mensagem');
+            
+            if (!toastElement || !toastMensagem) return;
+
+            toastMensagem.innerText = mensagem;
+            toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+
+            if (variante === "success") toastElement.classList.add('bg-success');
+            if (variante === "danger") toastElement.classList.add('bg-danger');
+            if (variante === "warning") toastElement.classList.add('bg-warning');
+            if (variante === "info") toastElement.classList.add('bg-info');
+
+            const bsToast = new bootstrap.Toast(toastElement);
+            bsToast.show();
+        }
+
+        async function executarLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const senha = document.getElementById('login-senha').value;
+            const alerta = document.getElementById('mensagem-alerta');
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, senha })
+                });
+
+                if (!response.ok) {
+                    const erro = await response.json();
+                    throw new Error(erro.detail || "E-mail ou senha incorretos.");
+                }
+
+                const dados = await response.json();
+                localStorage.setItem('token_mapas', dados.access_token);
+
+                // REQUISITO: Alerta nativo substituído por Toast elegante de sucesso
+                exibirToast("🔑 Login efetuado com sucesso! Entrando...", "success");
+                
+                // Dá um tempinho de 1.2 segundos para o usuário ver o Toast verde subir
+                setTimeout(() => {
+                    window.location.href = "index.html";
+                }, 1200);
+
+            } catch (error) {
+                // Mantém o texto na div de alerta e joga também um Toast vermelho de erro na tela!
+                if (alerta) {
+                    alerta.className = "alert alert-danger";
+                    alerta.innerText = `❌ ${error.message}`;
+                    alerta.classList.remove('d-none');
+                }
+                exibirToast(`Falha no acesso: ${error.message}`, "danger");
+            }
+        }
+
+        // CAPTURA O FEEDBACK DE SUCESSO VINDO DO CADASTRO
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('sucesso') === 'true') {
+                // Em vez de alert(), usamos o Toast Amarelo/Informativo ou o próprio alerta verde da tela
+                const alerta = document.getElementById('mensagem-alerta');
+                if (alerta) {
+                    alerta.className = "alert alert-success";
+                    alerta.innerText = "🎉 Conta criada com sucesso! Insira suas credenciais abaixo para entrar.";
+                    alerta.classList.remove('d-none');
+                }
+                exibirToast("Conta criada com sucesso! Pronto para logar.", "info");
+            }
+        }
+    </script>
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+        <div id="toast-sistema" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+            <div class="d-flex">
+                <div id="toast-mensagem" class="toast-body fw-bold">
+                    </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
