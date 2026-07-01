@@ -1,12 +1,12 @@
 {
-    "Brasil": {
+    "brasil": {
         "Arquivo": "1.png",
         "X": 0,
         "Y": 0,
         "Cor": "#000000",
         "Regiões filhas": {
-            "Pernambuco": {
-                "Arquivo": "2.png",
+            "pernambuco": {
+                "Arquivo": "3.png",
                 "X": 0,
                 "Y": 0,
                 "Cor": "#000000",
@@ -14,8 +14,8 @@
             }
         }
     },
-    "teste": {
-        "Arquivo": "3.png",
+    "canada": {
+        "Arquivo": "2.png",
         "X": 0,
         "Y": 0,
         "Cor": "#000000",
